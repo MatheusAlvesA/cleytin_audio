@@ -34,6 +34,7 @@ void CleytinAudioEngine::init() {
 
     esp_pthread_cfg_t attr = esp_pthread_get_default_config();
     attr.pin_to_core = 1;
+    attr.stack_size = 1024;
     esp_pthread_set_cfg(&attr);
     pthread_create(&this->thread, NULL, c_loop, this);
 }
