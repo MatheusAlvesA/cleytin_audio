@@ -17,6 +17,7 @@ CleytinAudio::CleytinAudio(
     this->sampleRate = sampleRate;
     this->autoRemove = false;
     this->loop = false;
+    this->volume = 100;
 }
 
 void CleytinAudio::play() {
@@ -76,6 +77,16 @@ void CleytinAudio::setPlayTimeMs(uint32_t time) {
     uint32_t sampleRateMS = this->sampleRate / 1000;
     this->sampleCursor = time * sampleRateMS;
     this->unlockMutex("CleytinAudio::setPlayTimeMs");
+}
+
+void CleytinAudio::setVolume(uint8_t volume) {
+    this->lockMutex("CleytinAudio::setVolume");
+    this->volume = volume <= 100 ? volume : 100;
+    this->unlockMutex("CleytinAudio::setVolume");
+}
+
+uint8_t CleytinAudio::getVolume() {
+    return this->volume;
 }
 
 uint32_t CleytinAudio::getSampleCursor() {

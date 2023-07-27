@@ -21,6 +21,7 @@ public:
     void setAutoRemove(bool autoRemove);
     void setLoop(bool loop);
     void setPlayTimeMs(uint32_t time);
+    void setVolume(uint8_t volume);
     /**
      * @brief Configura o cursor de reprodução, não é thread safe
     */
@@ -30,6 +31,7 @@ public:
     uint32_t getPlayTimeMs();
     uint32_t getSampleCursor();
     uint32_t getNSamples();
+    uint8_t getVolume();
     bool getLoop();
     const uint8_t* getBuff();
     bool isPlaying();
@@ -45,6 +47,7 @@ private:
     bool toBeRemoved;
     uint32_t bitsPerSample;
     uint32_t sampleRate;
+    uint8_t volume;
     pthread_mutex_t *engineMutex;
 
     void lockMutex(const char* funcName);

@@ -115,11 +115,14 @@ void CleytinAudioEngine::loop() {
             uint32_t copyUntil = remainingLen < CLEYTIN_AUDIO_BUFFER_SIZE ? remainingLen : CLEYTIN_AUDIO_BUFFER_SIZE;
             for (size_t j = 0; j < copyUntil; j++) {
                 uint32_t sample = (uint32_t) audioBuff[j];
-                sample += (uint32_t) this->buff[j];
-                if(sample > 0xFFFF) {
-                    sample = 0xFFFF;
+                uint32_t finalSample = (uint32_t) this->buff[j];
+                sample *= ((float) audio->getVolume() / 100);
+                finalSample += sample;
+
+                if(finalSample > 0xFFFF) {
+                    finalSample = 0xFFFF;
                 }
-                this->buff[j] = (uint16_t) sample;
+                this->buff[j] = (uint16_t) finalSample;
             }
         }
 
