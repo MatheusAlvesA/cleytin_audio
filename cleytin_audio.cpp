@@ -1,113 +1,136 @@
 #include "cleytin_audio.h"
 
-CleytinAudio::CleytinAudio() {
-    this->bytes_written = new size_t;
+CleytinAudio::CleytinAudio(
+    const uint8_t* buff,
+    pthread_mutex_t *engineMutex,
+    uint32_t buffSize,
+    uint32_t bitsPerSample,
+    uint32_t sampleRate
+) {
+    this->buff = buff;
+    this->playing = false;
+    this->sampleCursor = 0;
+    this->toBeRemoved = false;
+    this->engineMutex = engineMutex;
+    this->buffSize = buffSize;
+    this->bitsPerSample = bitsPerSample;
+    this->sampleRate = sampleRate;
+    this->autoRemove = false;
+    this->loop = false;
 }
 
-CleytinAudio::~CleytinAudio() {
-    i2s_channel_disable(this->tx_handle);
-    i2s_del_channel(this->tx_handle);
-    delete this->bytes_written;
+void CleytinAudio::play() {
+    this->lockMutex("CleytinAudio::play");
+    this->playing = true;
+    this->unlockMutex("CleytinAudio::play");
 }
 
-void CleytinAudio::init() {
-    this->chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
-    i2s_new_channel(&chan_cfg, &this->tx_handle, NULL);
-    this->std_cfg = this->getStdConfig(44100, 16, 1);
-    i2s_channel_init_std_mode(this->tx_handle, &this->std_cfg);
+void CleytinAudio::pause() {
+    this->lockMutex("CleytinAudio::pause");
+    this->playing = false;
+    this->unlockMutex("CleytinAudio::pause");
 }
 
-i2s_std_config_t CleytinAudio::getStdConfig(uint32_t sampleRate, uint16_t bitsPerSample, uint16_t numChannels) {
-    i2s_data_bit_width_t dataBitWidth = i2s_data_bit_width_t::I2S_DATA_BIT_WIDTH_16BIT;
-    i2s_slot_mode_t slotMode = i2s_slot_mode_t::I2S_SLOT_MODE_STEREO;
-    if(numChannels == 1) {
-        slotMode = i2s_slot_mode_t::I2S_SLOT_MODE_MONO;
-    }
-
-    switch (bitsPerSample) {
-    case 8:
-        dataBitWidth = i2s_data_bit_width_t::I2S_DATA_BIT_WIDTH_8BIT;
-        break;
-    case 16:
-        dataBitWidth = i2s_data_bit_width_t::I2S_DATA_BIT_WIDTH_16BIT;
-        break;
-    case 24:
-        dataBitWidth = i2s_data_bit_width_t::I2S_DATA_BIT_WIDTH_24BIT;
-        break;
-    case 32:
-        dataBitWidth = i2s_data_bit_width_t::I2S_DATA_BIT_WIDTH_32BIT;
-        break;
-    
-    default:
-        dataBitWidth = i2s_data_bit_width_t::I2S_DATA_BIT_WIDTH_16BIT;
-        break;
-    }
-
-    i2s_std_config_t r = {
-        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(sampleRate),
-        .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(dataBitWidth, slotMode),
-        .gpio_cfg = {
-            .mclk = I2S_GPIO_UNUSED,
-            .bclk = GPIO_NUM_21,
-            .ws = GPIO_NUM_19,
-            .dout = GPIO_NUM_33,
-            .din = I2S_GPIO_UNUSED,
-            .invert_flags = {
-                .mclk_inv = false,
-                .bclk_inv = false,
-                .ws_inv = false,
-            },
-        },
-    };
-
-    return r;
+void CleytinAudio::stop() {
+    this->lockMutex("CleytinAudio::stop");
+    this->playing = false;
+    this->sampleCursor = 0;
+    this->unlockMutex("CleytinAudio::stop");
 }
 
-WavReadError CleytinAudio::playWav(const uint8_t* buff) {
-    WavHeader *header = (WavHeader *)buff;
-    const uint8_t* data = buff + 44; // O header tem 44 bytes, os dados começam depois disso
-
-    WavReadError err = this->validateWavHeader(header);
-    if(err != WAV_READ_OK) {
-        return err;
-    }
-
-    this->std_cfg = this->getStdConfig(header->sampleRate, header->bitsPerSample, header->numChannels);
-    i2s_channel_reconfig_std_clock(this->tx_handle, &this->std_cfg.clk_cfg);
-    i2s_channel_reconfig_std_slot(this->tx_handle, &this->std_cfg.slot_cfg);
-
-    i2s_channel_enable(this->tx_handle);
-    i2s_channel_write(this->tx_handle, data, header->dataSize, this->bytes_written, 1000);
-    i2s_channel_disable(this->tx_handle);
-    return WAV_READ_OK;
+void CleytinAudio::remove() {
+    this->lockMutex("CleytinAudio::remove");
+    this->toBeRemoved = true;
+    this->unlockMutex("CleytinAudio::remove");
 }
 
-WavReadError CleytinAudio::validateWavHeader(WavHeader *header) {
-    if(
-        header->format[0] != 'W' ||
-        header->format[1] != 'A' ||
-        header->format[2] != 'V' ||
-        header->format[3] != 'E'
-    ) {
-        // O formato deve ser WAVE, o arquivo pode estar corrompido
-        return WAV_READ_INVALID_DATA;
+bool CleytinAudio::isPlaying() {
+    return this->playing;
+}
+
+bool CleytinAudio::mustRemove() {
+    return this->toBeRemoved;
+}
+
+void CleytinAudio::setAutoRemove(bool autoRemove) {
+    this->lockMutex("CleytinAudio::setAutoRemove");
+    this->autoRemove = autoRemove;
+    this->unlockMutex("CleytinAudio::setAutoRemove");
+}
+
+void CleytinAudio::setLoop(bool loop) {
+    this->lockMutex("CleytinAudio::setLoop");
+    this->loop = loop;
+    this->unlockMutex("CleytinAudio::setLoop");
+}
+
+uint32_t CleytinAudio::getPlayTimeMs() {
+    uint32_t sampleRateMS = this->sampleRate / 1000;
+    uint32_t nSamples = this->sampleCursor * (this->bitsPerSample / 8);
+
+    return nSamples / sampleRateMS;
+}
+
+void CleytinAudio::setPlayTimeMs(uint32_t time) {
+    this->lockMutex("CleytinAudio::setPlayTimeMs");
+    uint32_t sampleRateMS = this->sampleRate / 1000;
+    this->sampleCursor = time * sampleRateMS;
+    this->unlockMutex("CleytinAudio::setPlayTimeMs");
+}
+
+uint32_t CleytinAudio::getSampleCursor() {
+    return this->sampleCursor;
+}
+
+uint32_t CleytinAudio::getNSamples() {
+    return this->buffSize / (this->bitsPerSample / 8);
+}
+
+void CleytinAudio::setSampleCursor(uint32_t cursor) {
+    this->sampleCursor = cursor;
+    uint32_t buffCursor = cursor * (this->bitsPerSample / 8);
+
+    if(buffCursor < this->buffSize) {
+        return;
     }
-    if(header->formatID != 1) {
-        // O formato deve ser 1, sem compressão
-        return WAV_READ_INVALID_FORMAT;
+
+    this->playing = false;
+    if(this->autoRemove) {
+        this->toBeRemoved = true;
     }
-    if(header->numChannels > 2) {
-        // Só são suportados mono(1) e estéreo(2)
-        return WAV_READ_INVALID_NUM_CHANNELS;
+    if(this->loop) {
+        this->sampleCursor = 0;
+        this->playing = true;
     }
-    if(
-        header->bitsPerSample != 8 &&
-        header->bitsPerSample != 16 &&
-        header->bitsPerSample != 24 &&
-        header->bitsPerSample != 32
-    ) {
-        // Só são suportados 8, 16, 24 ou 32 bits por sample
-        return WAV_READ_INVALID_BIT_RATE;
+}
+
+bool CleytinAudio::getLoop() {
+    return this->loop;
+}
+
+uint32_t CleytinAudio::getDurationMs() {
+    uint32_t sampleRateMS = this->sampleRate / 1000;
+    uint32_t nSamples = this->buffSize / (this->bitsPerSample / 8);
+
+    return nSamples / sampleRateMS;
+}
+
+const uint8_t* CleytinAudio::getBuff() {
+    return this->buff;
+}
+
+void CleytinAudio::lockMutex(const char* funcName) {
+    int r = pthread_mutex_lock(this->engineMutex);
+    if(r) {
+        printf("[%s] Erro ao travar mutex: %d\n", funcName, r);
+        return;
     }
-    return WAV_READ_OK;
+}
+
+void CleytinAudio::unlockMutex(const char* funcName) {
+    int r = pthread_mutex_unlock(this->engineMutex);
+    if(r) {
+        printf("[%s] Erro ao destravar mutex: %d\n", funcName, r);
+        return;
+    }
 }

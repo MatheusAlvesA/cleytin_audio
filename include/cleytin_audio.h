@@ -1,51 +1,54 @@
 #ifndef CLEYTIN_AUDIO_H
 #define CLEYTIN_AUDIO_H
 
-#include "driver/i2s_std.h"
-
-struct WavHeader
-{
-  char startSectionID[4];     // String "RIFF"
-  uint32_t size;              // Tamanho do arquivo em bytes, menos 8
-  char format[4];             // String "WAVE"
-  
-  char formatSectionID[4];    // String "fmt"
-  uint32_t formatSize;        // Tamanho dessa seção, menos 8
-  uint16_t formatID;          // Id do formato dos dados, 1 para sem compressão, outros formatos não são suportados
-  uint16_t numChannels;       // Número de canais, 1=mono e 3=estéreo, outros formatos não são suportados
-  uint32_t sampleRate;        // 44100, 16000, 8000 etc.
-  uint32_t byteRate;          // 8, 16, 24 ou 32
-  uint16_t blockAlign;
-  uint16_t bitsPerSample;     // Quantos bits de informação por sample
-
-  char dataSectionID[4];      // String "data"
-  uint32_t dataSize;          // Tamanho dos dados
-};
-
-enum WavReadError {
-    WAV_READ_OK                     = 0,
-    WAV_READ_INVALID_FORMAT         = 1,
-    WAV_READ_INVALID_NUM_CHANNELS   = 2,
-    WAV_READ_INVALID_BIT_RATE       = 3,
-    WAV_READ_INVALID_DATA           = 4,
-};
+#include <pthread.h>
+#include <cstdio>
 
 class CleytinAudio {
 public:
-    CleytinAudio();
-    ~CleytinAudio();
-    void init();
-    WavReadError playWav(const uint8_t* buff);
+    CleytinAudio(
+        const uint8_t* buff,
+        pthread_mutex_t *engineMutex,
+        uint32_t buffSize,
+        uint32_t bitsPerSample,
+        uint32_t sampleRate
+    );
+    void play();
+    void pause();
+    void stop();
+    void remove();
+
+    void setAutoRemove(bool autoRemove);
+    void setLoop(bool loop);
+    void setPlayTimeMs(uint32_t time);
+    /**
+     * @brief Configura o cursor de reprodução, não é thread safe
+    */
+    void setSampleCursor(uint32_t cursor);
+
+    uint32_t getDurationMs();
+    uint32_t getPlayTimeMs();
+    uint32_t getSampleCursor();
+    uint32_t getNSamples();
+    bool getLoop();
+    const uint8_t* getBuff();
+    bool isPlaying();
+    bool mustRemove();
 
 private:
-    i2s_chan_handle_t tx_handle;
-    i2s_chan_config_t chan_cfg;
-    i2s_std_config_t std_cfg;
-    size_t *bytes_written;
+    const uint8_t* buff;
+    bool playing;
+    bool autoRemove;
+    bool loop;
+    uint32_t sampleCursor;
+    uint32_t buffSize;
+    bool toBeRemoved;
+    uint32_t bitsPerSample;
+    uint32_t sampleRate;
+    pthread_mutex_t *engineMutex;
 
-    WavReadError validateWavHeader(WavHeader *header);
-    i2s_std_config_t getStdConfig(uint32_t sampleRate, uint16_t bitsPerSample, uint16_t numChannels);
+    void lockMutex(const char* funcName);
+    void unlockMutex(const char* funcName);
 };
-
 
 #endif
