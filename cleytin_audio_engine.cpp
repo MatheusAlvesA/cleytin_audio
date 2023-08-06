@@ -147,6 +147,14 @@ void CleytinAudioEngine::clearAudios() {
     this->audios = newList;
 }
 
+void CleytinAudioEngine::clear() {
+    for (size_t i = 0; i < this->audios->size(); i++) {
+        delete this->audios->at(i);
+    }
+    delete this->audios;
+    this->audios = new std::vector<CleytinAudio*>;
+}
+
 WavReadError CleytinAudioEngine::createAudio(const uint8_t* buff, CleytinAudio **audio) {
     const WavHeader *header = (WavHeader *)buff;
     const uint8_t* data = buff + 44; // O header tem 44 bytes, os dados começam depois disso

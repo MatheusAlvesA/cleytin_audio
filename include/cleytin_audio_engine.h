@@ -59,6 +59,7 @@ public:
     WavReadError createAudio(const uint8_t* buff, CleytinAudio **audio);
     WavReadError playOnce(const uint8_t* buff);
     void loop();
+    void clear();
 
 private:
     i2s_chan_handle_t tx_handle;
