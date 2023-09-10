@@ -151,8 +151,7 @@ void CleytinAudioEngine::clear() {
     for (size_t i = 0; i < this->audios->size(); i++) {
         delete this->audios->at(i);
     }
-    delete this->audios;
-    this->audios = new std::vector<CleytinAudio*>;
+    this->audios->clear();
 }
 
 WavReadError CleytinAudioEngine::createAudio(const uint8_t* buff, CleytinAudio **audio) {
