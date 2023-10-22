@@ -34,7 +34,7 @@ void CleytinAudioEngine::init() {
 
     esp_pthread_cfg_t attr = esp_pthread_get_default_config();
     attr.pin_to_core = 1;
-    attr.stack_size = 1024;
+    attr.stack_size = 2048;
     esp_pthread_set_cfg(&attr);
     pthread_create(&this->thread, NULL, c_loop, this);
 }
@@ -103,9 +103,12 @@ void CleytinAudioEngine::loop() {
         this->clearAudios();
         for (size_t i = 0; i < this->audios->size(); i++) {
             CleytinAudio *audio = this->audios->at(i);
+            if(!audio->isPlaying()) {
+                continue;
+            }
             uint32_t sampleCursor = audio->getSampleCursor();
             audio->setSampleCursor(sampleCursor + (bytesWritten / (CLEYTIN_AUDIO_BIT_SAMPLE / 8)));
-            if(!audio->isPlaying() || sampleCursor >= audio->getNSamples()) {
+            if(sampleCursor >= audio->getNSamples()) {
                 continue;
             }
             uint16_t *audioBuff = (uint16_t *)audio->getBuff();
@@ -116,7 +119,10 @@ void CleytinAudioEngine::loop() {
             for (size_t j = 0; j < copyUntil; j++) {
                 uint32_t sample = (uint32_t) audioBuff[j];
                 uint32_t finalSample = (uint32_t) this->buff[j];
-                sample *= ((float) audio->getVolume() / 100);
+                sample *= 100; // Aumentando escala para evitar problema de arredondamento
+                uint32_t onePercentValue = sample / 100;
+                sample -= onePercentValue * (100 - audio->getVolume());
+                sample /= 100; // Voltando escala
                 finalSample += sample;
 
                 if(finalSample > 0xFFFF) {
@@ -193,19 +199,24 @@ WavReadError CleytinAudioEngine::validateWavHeader(const WavHeader *header) {
         header->format[3] != 'E'
     ) {
         // O formato deve ser WAVE, o arquivo pode estar corrompido
+        printf("[CleytinAudioEngine] Erro ao criar audio: Header não parece válido\n");
         return WAV_READ_INVALID_DATA;
     }
     if(header->formatID != 1) {
         // O formato deve ser 1, sem compressão
+        printf("[CleytinAudioEngine] Erro ao criar audio: Wav deve ser sem compressão\n");
         return WAV_READ_INVALID_FORMAT;
     }
     if(header->numChannels != CLEYTIN_AUDIO_N_CHANNELS) {
+        printf("[CleytinAudioEngine] Erro ao criar audio: Deve ser audio mono\n");
         return WAV_READ_INVALID_NUM_CHANNELS;
     }
     if(header->bitsPerSample != CLEYTIN_AUDIO_BIT_SAMPLE) {
+        printf("[CleytinAudioEngine] Erro ao criar audio: Devem ser %d bits por sample\n", CLEYTIN_AUDIO_BIT_SAMPLE);
         return WAV_READ_INVALID_BIT_RATE;
     }
     if(header->sampleRate != CLEYTIN_AUDIO_SAMPLE_RATE) {
+        printf("[CleytinAudioEngine] Erro ao criar audio: Sample rate deve ser %d\n", CLEYTIN_AUDIO_SAMPLE_RATE);
         return WAV_READ_INVALID_SAMPLE_RATE;
     }
     return WAV_READ_OK;
