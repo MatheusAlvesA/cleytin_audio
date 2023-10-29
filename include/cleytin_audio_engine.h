@@ -21,7 +21,7 @@
 #ifndef CLEYTIN_AUDIO_WAIT_TIMEOUT
 #define CLEYTIN_AUDIO_WAIT_TIMEOUT 1000
 #endif
-#define CLEYTIN_AUDIO_BUFFER_SIZE ((16 * 1024) / (CLEYTIN_AUDIO_BIT_SAMPLE / 8)) //16KB
+#define CLEYTIN_AUDIO_BUFFER_SIZE ((8 * 1024) / (CLEYTIN_AUDIO_BIT_SAMPLE / 8)) //8KB
 
 struct WavHeader
 {
@@ -57,7 +57,7 @@ public:
     ~CleytinAudioEngine();
     void init();
     WavReadError createAudio(const uint8_t* buff, CleytinAudio **audio);
-    WavReadError playOnce(const uint8_t* buff);
+    WavReadError playOnce(const uint8_t* buff, uint8_t volume = 100);
     void loop();
     void clear();
 

@@ -180,13 +180,14 @@ WavReadError CleytinAudioEngine::createAudio(const uint8_t* buff, CleytinAudio *
     return WAV_READ_OK;
 }
 
-WavReadError CleytinAudioEngine::playOnce(const uint8_t* buff) {
+WavReadError CleytinAudioEngine::playOnce(const uint8_t* buff, uint8_t volume) {
     CleytinAudio *audio = NULL;
     WavReadError r = this->createAudio(buff, &audio);
     if(r != WAV_READ_OK) {
         return r;
     }
     audio->setAutoRemove(true);
+    audio->setVolume(volume);
     audio->play();
     return WAV_READ_OK;
 }
